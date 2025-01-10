@@ -1,77 +1,141 @@
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+import json
 import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
+from datetime import datetime
 
-def setup_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')  # Run in headless mode
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
-
-def open_arduino_web_editor():
-    driver = setup_driver()
+def connect_to_arduino():
+    # Initialize session
+    session = requests.Session()
     
-    # Open Arduino Web Editor
-    driver.get("https://app.arduino.cc/sketches/9dde49f6-08e5-4bc5-8dab-33849adbb868")
-    
-    # Wait for the device selection button
-    wait = WebDriverWait(driver, 10)
-    unknown_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "_device-name_12ggg_205")))
-    unknown_button.click()
-    
-    # Find and fill the search input
-    search_input = wait.until(EC.presence_of_element_located((By.ID, "react-aria6138362191-:r10:")))
-    search_input.send_keys("DOIT ESP32 DEVKIT V1")
-    search_input.send_keys(Keys.TAB)
-    search_input.send_keys(Keys.ENTER)
-    
-    # Open Serial Monitor
-    serial_monitor = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "_open-serial-monitor-button_1y7x9_356")))
-    serial_monitor.click()
-    
-    # Switch to Serial Monitor window
-    driver.get("https://app.arduino.cc/sketches/monitor")
-    
-    # Change baud rate to 115200
-    baud_button = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "_x-small_wmean_200")))
-    baud_button.click()
-    baud_115200 = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='115200']")))
-    baud_115200.click()
-    
-    return driver
-
-def get_serial_output(driver):
     try:
-        serial_output = driver.find_element(By.CLASS_NAME, "serial-output").text
-        return serial_output
-    except:
-        return "Waiting for serial output..."
+        # Login to Arduino Web Editor (you'll need to add your credentials)
+        login_url = "https://auth.arduino.cc/login"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        # Store the session in streamlit state
+        st.session_state.arduino_session = session
+        return True
+    except Exception as e:
+        st.error(f"Connection error: {str(e)}")
+        return False
+
+def open_serial_monitor():
+    if 'arduino_session' not in st.session_state:
+        return "Not connected to Arduino"
+    
+    try:
+        # Access the serial monitor URL
+        monitor_url = "https://app.arduino.cc/sketches/9dde49f6-08e5-4bc5-8dab-33849adbb868"
+        response = st.session_state.arduino_session.get(monitor_url)
+        
+        if response.status_code == 200:
+            return "Connected to Serial Monitor"
+        else:
+            return f"Error accessing Serial Monitor: {response.status_code}"
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 def main():
     st.title("Smart Entrance Control System")
     
-    if 'driver' not in st.session_state:
-        st.session_state.driver = None
+    # Initialize session state for values
+    if 'temperature' not in st.session_state:
+        st.session_state.temperature = 25
+    if 'humidity' not in st.session_state:
+        st.session_state.humidity = 60
+    if 'door_status' not in st.session_state:
+        st.session_state.door_status = "Closed"
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = datetime.now()
+    if 'connected' not in st.session_state:
+        st.session_state.connected = False
+    if 'serial_output' not in st.session_state:
+        st.session_state.serial_output = ""
+    if 'activities' not in st.session_state:
+        st.session_state.activities = []
     
-    if st.button("Connect to Arduino"):
-        st.session_state.driver = open_arduino_web_editor()
-        st.success("Connected to Arduino Web Editor!")
+    # Add header and description
+    st.header("System Status")
+    st.write("This is a monitoring interface for the Smart Entrance Control System.")
     
-    if st.session_state.driver:
-        # Create a placeholder for the serial output
-        serial_output = st.empty()
+    # Connection button
+    if not st.session_state.connected:
+        if st.button("Connect to Arduino"):
+            if connect_to_arduino():
+                st.session_state.connected = True
+                st.success("Connected to Arduino Web Editor!")
+                # Open Serial Monitor
+                result = open_serial_monitor()
+                st.info(result)
+    
+    # Display connection status
+    status = "Connected" if st.session_state.connected else "Disconnected"
+    st.sidebar.write(f"Status: {status}")
+    
+    # Display system information
+    st.subheader("System Information")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.metric(label="Temperature", value=f"{st.session_state.temperature}°C")
+        st.metric(label="Humidity", value=f"{st.session_state.humidity}%")
+    
+    with col2:
+        st.metric(label="Door Status", value=st.session_state.door_status)
+        st.metric(label="Last Update", value=st.session_state.last_update.strftime("%H:%M:%S"))
+    
+    # If connected, show controls and data
+    if st.session_state.connected:
+        # Create columns for controls
+        col1, col2 = st.columns(2)
         
-        # Continuously update the serial output
-        while True:
-            output = get_serial_output(st.session_state.driver)
-            serial_output.text_area("Serial Monitor Output:", output, height=400)
-            time.sleep(1)
+        with col1:
+            if st.button("Open Door"):
+                st.session_state.serial_output += "\nSending open door command..."
+        
+        with col2:
+            if st.button("Close Door"):
+                st.session_state.serial_output += "\nSending close door command..."
+        
+        # Display serial output
+        st.text_area("Serial Monitor Output", st.session_state.serial_output, height=400)
+        
+        # Auto-refresh button
+        if st.button("Refresh Data"):
+            new_data = open_serial_monitor()
+            st.session_state.serial_output += f"\n{new_data}"
+            st.experimental_rerun()
+    
+    # Add a section for recent activities
+    st.subheader("Recent Activities")
+    
+    # Add activity log
+    for activity in st.session_state.activities:
+        st.text(activity)
+    
+    # Simulate new data (in real implementation, this would come from Arduino)
+    if st.button("Simulate New Data"):
+        import random
+        st.session_state.temperature = round(random.uniform(20, 30), 1)
+        st.session_state.humidity = round(random.uniform(50, 70))
+        new_status = "Open" if st.session_state.door_status == "Closed" else "Closed"
+        st.session_state.door_status = new_status
+        st.session_state.last_update = datetime.now()
+        
+        # Add to activity log
+        activity = f"[{st.session_state.last_update.strftime('%H:%M:%S')}] "
+        activity += f"Temperature: {st.session_state.temperature}°C, "
+        activity += f"Humidity: {st.session_state.humidity}%, "
+        activity += f"Door: {st.session_state.door_status}"
+        st.session_state.activities.insert(0, activity)
+        
+        # Keep only last 10 activities
+        st.session_state.activities = st.session_state.activities[:10]
+        st.experimental_rerun()
 
 if __name__ == "__main__":
     main()
