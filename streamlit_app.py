@@ -1,4 +1,9 @@
 import streamlit as st
+from datetime import datetime
+
+# Initialize session state
+if "last_update" not in st.session_state:
+    st.session_state.last_update = datetime.now()
 
 def main():
     st.title("Smart Entrance Control System")
@@ -33,6 +38,9 @@ def main():
     
     for activity in activities:
         st.text(activity)
+    
+    # Update last_update time
+    st.session_state.last_update = datetime.now()
 
 if __name__ == "__main__":
     main()
