@@ -1,3 +1,5 @@
-streamlit==1.28.0
+streamlit==1.24.0
+selenium==4.10.0
+webdriver_manager==3.8.6
 pyserial==3.5
-esptool==4.6.2 
+numpy==1.24.3

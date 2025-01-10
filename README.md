@@ -1,69 +1,101 @@
-# نظام إدارة البصمات
+# Smart Entrance Control System
 
-نظام متكامل لإدارة البصمات باستخدام ESP32 وStreamlit. يتيح النظام تسجيل البصمات وإدارتها ومراقبة سجل الأحداث عبر اتصال WiFi.
+A comprehensive IoT-based entrance control system using ESP32, combining fingerprint recognition, RFID, and automated lighting control with a Streamlit web interface for monitoring.
 
-## المميزات
+## 🌟 Features
+- **Biometric Access Control**: Fingerprint sensor integration
+- **RFID Access**: Card reader support
+- **Automated Lighting**: Light-dependent control system
+- **Real-time Monitoring**: Streamlit web interface
+- **MQTT Integration**: Real-time communication
+- **Secure Access Logging**: Track all access attempts
 
-- تسجيل بصمات جديدة
-- عرض البصمات المسجلة
-- حذف البصمات
-- مراقبة سجل الأحداث
-- لوحة معلومات تفاعلية
-- اتصال لاسلكي عبر WiFi
+## 🛠️ Hardware Requirements
+- ESP32 DEVKIT V1
+- Fingerprint Sensor
+- RFID Reader (MFRC522)
+- Light Sensor (LDR)
+- 2-Channel Relay Module
+- LED lights
+- Electronic Door Lock
 
-## متطلبات التشغيل
+## 📋 Software Requirements
+- Python 3.8+
+- Chrome Browser
+- Arduino IDE (for ESP32 programming)
 
-1. **متطلبات Python**
+## 📦 Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/smart-entrance-system.git
+   cd smart-entrance-system
+   ```
+
+2. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **متطلبات الجهاز**
-   - ESP32 Development Board
-   - مستشعر البصمة
-   - شبكة WiFi
+3. Upload ESP32 code:
+   - Open `smart_entrance.ino` in Arduino IDE
+   - Select "DOIT ESP32 DEVKIT V1" board
+   - Upload the code
 
-## إعداد الجهاز
-
-1. **تكوين شبكة WiFi**
-   - قم بتشغيل ESP32
-   - اتصل بشبكة WiFi الخاصة بالجهاز (SSID: ESP32_Fingerprint)
-   - افتح المتصفح على عنوان `192.168.4.1`
-   - أدخل بيانات شبكة WiFi الخاصة بك
-
-2. **التحقق من الاتصال**
-   - سيعرض الجهاز عنوان IP الخاص به
-   - تأكد من إمكانية الوصول إلى الجهاز عبر المتصفح
-
-## التشغيل
-
-1. **تشغيل التطبيق**
+4. Run Streamlit interface:
    ```bash
-   streamlit run streamlit_app.py
+   streamlit run app.py
    ```
 
-2. **الاتصال بالجهاز**
-   - أدخل عنوان IP الجهاز في التطبيق
-   - اضغط على زر "اتصال"
-   - انتظر حتى يتم التأكيد على نجاح الاتصال
+## 🔧 Hardware Setup
 
-## هيكل المشروع
-```
-.
-├── streamlit_app.py       # تطبيق Streamlit
-├── requirements.txt       # متطلبات Python
-├── .env.example          # نموذج الإعدادات
-└── README.md             # التوثيق
-```
+### Pin Connections
+- **RFID Reader (MFRC522)**:
+  - RST: GPIO5
+  - SDA(SS): GPIO22
+  - MOSI: GPIO23
+  - MISO: GPIO19
+  - SCK: GPIO18
 
-## الأمان
-- استخدم كلمة مرور قوية لشبكة WiFi
-- قم بتغيير كلمة المرور الافتراضية للجهاز
-- احفظ البيانات في قاعدة بيانات آمنة
-- استخدم اتصالاً مشفراً مع الجهاز
+- **Fingerprint Sensor**:
+  - RX: GPIO16
+  - TX: GPIO17
 
-## المساهمة
-نرحب بمساهماتكم! يرجى اتباع الخطوات التالية:
-1. Fork المشروع
-2. إنشاء فرع للميزة الجديدة
-3. تقديم Pull Request 
+- **Relay Module**:
+  - Light Control: GPIO26
+  - Door Lock: GPIO27
+
+- **LDR Sensor**:
+  - Analog Input: GPIO34
+
+## 💻 Usage
+1. Start the Streamlit app
+2. Click "Connect to Arduino"
+3. Monitor system status in real-time
+4. View access logs and system events
+
+## 🔐 Security Features
+- Encrypted MQTT communication
+- Access attempt logging
+- Multiple authentication methods
+- Automatic system status monitoring
+
+## 📱 Web Interface Features
+- Real-time system status
+- Access log viewer
+- Light control monitoring
+- Door status tracking
+
+## 🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+- ESP32 Community
+- Streamlit Team
+- Arduino Community
+
+## 📞 Support
+For support, please open an issue in the GitHub repository.
