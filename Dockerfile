@@ -4,9 +4,10 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+RUN playwright install chromium
 
 COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["gunicorn", "--config", "gunicorn_config.py", "--worker-class", "eventlet", "app:app"]
