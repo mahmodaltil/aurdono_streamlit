@@ -43,8 +43,13 @@
     </div>
 
     <script>
-        const socket = io();
-        let connected = false;
+        const socket = io({
+            transports: ['websocket'],
+            upgrade: false,
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
 
         // DOM Elements
         const connectBtn = document.getElementById('connect-btn');
@@ -52,6 +57,22 @@
         const statusText = document.getElementById('connection-status');
         const lastUpdateText = document.getElementById('last-update');
         const serialOutput = document.getElementById('serial-output');
+
+        // Socket connection events
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            setTimeout(() => {
+                socket.connect();
+            }, 1000);
+        });
 
         // Connect Button
         connectBtn.addEventListener('click', async () => {
