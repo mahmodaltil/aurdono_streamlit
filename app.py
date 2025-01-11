@@ -72,7 +72,15 @@ async def connect_to_arduino():
         
         # Navigate to Arduino Web Editor
         logger.debug("Navigating to Arduino Web Editor...")
-        await page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
+        try:
+            await page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
+        except playwright._impl._errors.TargetClosedError:
+            logger.error("Error: Connection to Arduino failed because the target page or browser was closed.")
+            # Additional handling or retry logic can be added here
+            return False
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            return False
         
         # Wait for device selection button
         logger.debug("Waiting for device selection button...")
