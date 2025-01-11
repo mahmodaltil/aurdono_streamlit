@@ -92,30 +92,40 @@ async def connect_to_arduino():
         
         # Wait for device selection button
         logger.debug("Waiting for device selection button...")
+        print("Waiting for device selection button...")
         await page.wait_for_selector("._device-name_12ggg_205", timeout=30000)
         await page.click("._device-name_12ggg_205")
+        print("Device selection button clicked.")
         
         # Search for ESP32 device
         logger.debug("Selecting ESP32 device...")
+        print("Selecting ESP32 device...")
         search_input = await page.wait_for_selector("#react-aria6138362191-:r10:", timeout=30000)
         await search_input.type("DOIT ESP32 DEVKIT V1")
         await page.keyboard.press("Tab")
         await page.keyboard.press("Enter")
+        print("ESP32 device selected.")
         
         # Open Serial Monitor
         logger.debug("Opening Serial Monitor...")
+        print("Opening Serial Monitor...")
         await page.wait_for_selector("._open-serial-monitor-button_1y7x9_356", timeout=30000)
         await page.click("._open-serial-monitor-button_1y7x9_356")
+        print("Serial Monitor opened.")
         
         # Switch to Serial Monitor
         logger.debug("Switching to Serial Monitor...")
+        print("Switching to Serial Monitor...")
         await page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
+        print("Switched to Serial Monitor.")
         
         # Set baud rate to 115200
         logger.debug("Setting baud rate...")
+        print("Setting baud rate...")
         await page.wait_for_selector("._x-small_wmean_200", timeout=30000)
         await page.click("._x-small_wmean_200")
         await page.click('button:text("115200")')
+        print("Baud rate set to 115200.")
         
         logger.info("Successfully connected to Arduino Web Editor")
         browser_context['connected'] = True
