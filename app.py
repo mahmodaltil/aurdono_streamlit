@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
+import asyncio
 import threading
 import time
 import os
@@ -40,29 +41,30 @@ def handle_connect():
 def handle_disconnect():
     logger.info('Client disconnected')
 
-def setup_browser():
+async def setup_browser():
     """Initialize browser in headless mode"""
     try:
         logger.info("Starting Playwright and browser setup...")
-        browser_context['playwright'] = sync_playwright().start()
-        browser_context['browser'] = browser_context['playwright'].chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--disable-software-rasterizer',
-                '--disable-setuid-sandbox'
-            ]
-        )
-        browser_context['page'] = browser_context['browser'].new_page()
-        logger.info("Browser setup completed successfully")
-        return True
+        async with async_playwright() as p:
+            browser_context['playwright'] = p
+            browser_context['browser'] = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-software-rasterizer',
+                    '--disable-setuid-sandbox'
+                ]
+            )
+            browser_context['page'] = await browser_context['browser'].new_page()
+            logger.info("Browser setup completed successfully")
+            return True
     except Exception as e:
         logger.error(f"Failed to setup browser: {str(e)}", exc_info=True)
         return False
 
-def connect_to_arduino():
+async def connect_to_arduino():
     """Connect to Arduino Web Editor and setup device"""
     try:
         page = browser_context['page']
@@ -70,34 +72,34 @@ def connect_to_arduino():
         
         # Navigate to Arduino Web Editor
         logger.debug("Navigating to Arduino Web Editor...")
-        page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
+        await page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
         
         # Wait for device selection button
         logger.debug("Waiting for device selection button...")
-        page.wait_for_selector("._device-name_12ggg_205", timeout=30000)
-        page.click("._device-name_12ggg_205")
+        await page.wait_for_selector("._device-name_12ggg_205", timeout=30000)
+        await page.click("._device-name_12ggg_205")
         
         # Search for ESP32 device
         logger.debug("Selecting ESP32 device...")
-        search_input = page.wait_for_selector("#react-aria6138362191-:r10:", timeout=30000)
-        search_input.type("DOIT ESP32 DEVKIT V1")
-        page.keyboard.press("Tab")
-        page.keyboard.press("Enter")
+        search_input = await page.wait_for_selector("#react-aria6138362191-:r10:", timeout=30000)
+        await search_input.type("DOIT ESP32 DEVKIT V1")
+        await page.keyboard.press("Tab")
+        await page.keyboard.press("Enter")
         
         # Open Serial Monitor
         logger.debug("Opening Serial Monitor...")
-        page.wait_for_selector("._open-serial-monitor-button_1y7x9_356", timeout=30000)
-        page.click("._open-serial-monitor-button_1y7x9_356")
+        await page.wait_for_selector("._open-serial-monitor-button_1y7x9_356", timeout=30000)
+        await page.click("._open-serial-monitor-button_1y7x9_356")
         
         # Switch to Serial Monitor
         logger.debug("Switching to Serial Monitor...")
-        page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
+        await page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
         
         # Set baud rate to 115200
         logger.debug("Setting baud rate...")
-        page.wait_for_selector("._x-small_wmean_200", timeout=30000)
-        page.click("._x-small_wmean_200")
-        page.click('button:text("115200")')
+        await page.wait_for_selector("._x-small_wmean_200", timeout=30000)
+        await page.click("._x-small_wmean_200")
+        await page.click('button:text("115200")')
         
         logger.info("Successfully connected to Arduino Web Editor")
         browser_context['connected'] = True
@@ -146,14 +148,14 @@ def parse_serial_data(data):
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
-def monitor_serial_output():
+async def monitor_serial_output():
     """Monitor serial output in a separate thread"""
     while not browser_context['stop_monitor']:
         try:
             if browser_context['connected'] and browser_context['page']:
                 logger.debug("Reading serial output...")
-                output_element = browser_context['page'].wait_for_selector(".serial-output", timeout=5000)
-                new_output = output_element.inner_text()
+                output_element = await browser_context['page'].wait_for_selector(".serial-output", timeout=5000)
+                new_output = await output_element.inner_text()
                 
                 if new_output != browser_context['last_output']:
                     logger.debug(f"New serial output: {new_output}")
@@ -163,7 +165,7 @@ def monitor_serial_output():
         except Exception as e:
             logger.error(f"Error reading serial output: {str(e)}")
         
-        time.sleep(1)
+        await asyncio.sleep(1)
 
 @app.route('/')
 def index():
@@ -173,12 +175,11 @@ def index():
 def connect():
     logger.info("Received connection request")
     if not browser_context['connected']:
-        if setup_browser():
-            if connect_to_arduino():
+        if asyncio.run(setup_browser()):
+            if asyncio.run(connect_to_arduino()):
                 # Start monitoring thread
                 browser_context['stop_monitor'] = False
-                browser_context['monitor_thread'] = threading.Thread(target=monitor_serial_output)
-                browser_context['monitor_thread'].start()
+                asyncio.run(monitor_serial_output())
                 logger.info("Connection successful")
                 return jsonify({'success': True, 'message': 'Connected successfully'})
             else:
