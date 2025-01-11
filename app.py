@@ -128,6 +128,12 @@ async def connect_to_arduino():
         await page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
         print("Switched to Serial Monitor.")
         
+        # Press the Run button
+        logger.debug("Pressing the Run button...")
+        print("Pressing the Run button...")
+        await page.click("button._play-pause-button_1akfd_177")
+        print("Run button pressed.")
+        
         # Set baud rate to 115200
         logger.debug("Setting baud rate...")
         print("Setting baud rate...")
