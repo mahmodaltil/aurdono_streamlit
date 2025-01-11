@@ -70,6 +70,15 @@ async def connect_to_arduino():
         page = browser_context['page']
         logger.info("Connecting to Arduino Web Editor...")
         
+        # Open Arduino login page
+        await page.goto("https://app.arduino.cc/login", wait_until='networkidle')
+        print("Opened Arduino login page.")
+        await page.fill("input[name='email']", "bayan0mahmoud@gmail.com")  # أدخل البريد الإلكتروني
+        await page.fill("input[name='password']", "0122333bm")  # أدخل كلمة المرور
+        await page.click("button[type='submit']")  # اضغط على زر تسجيل الدخول
+        await page.wait_for_navigation()  # انتظر حتى يتم الانتقال بعد تسجيل الدخول
+        print("Logged in successfully.")
+        
         # Navigate to Arduino Web Editor
         logger.debug("Navigating to Arduino Web Editor...")
         while True:
