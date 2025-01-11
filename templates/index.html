@@ -64,6 +64,9 @@
                             <option value="200">200 lines</option>
                             <option value="500">500 lines</option>
                         </select>
+                        <button id="run-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 focus:outline-none">
+                            Run
+                        </button>
                     </div>
                 </div>
                 <div id="serial-output" class="font-mono text-green-400 h-96 overflow-y-auto bg-gray-800 p-4 rounded">
@@ -147,6 +150,7 @@
         const totalFingerprints = document.getElementById('total-fingerprints');
         const lastScan = document.getElementById('last-scan');
         const fingerprintLog = document.getElementById('fingerprint-log');
+        const runBtn = document.getElementById('run-btn');
         
         let messageCounter = 0;
         let connected = false;
@@ -326,6 +330,22 @@
             messageCounter = 0;
             messagesCount.textContent = '0';
             addSerialLine('Log cleared');
+        });
+
+        runBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/run', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addSerialLine('Process started');
+                } else {
+                    throw new Error(result.message || 'Failed to start process');
+                }
+            } catch (error) {
+                console.error('Failed to start process:', error);
+                addSerialLine(`Failed to start process: ${error.message}`);
+            }
         });
 
         // Update Connection Status
