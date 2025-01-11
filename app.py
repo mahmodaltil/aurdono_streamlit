@@ -78,7 +78,7 @@ async def connect_to_arduino():
         await page.click("button[type='submit']")  # اضغط على زر تسجيل الدخول
         await page.wait_for_navigation()  # انتظر حتى يتم الانتقال بعد تسجيل الدخول
         print("Logged in successfully.")
-        
+
         # Navigate to Arduino Web Editor
         logger.debug("Navigating to Arduino Web Editor...")
         while True:
@@ -99,43 +99,43 @@ async def connect_to_arduino():
                 logger.info("Retrying connection...")
                 await asyncio.sleep(5)  # Wait before retrying
         
+        # Press the Monitor button
+        await page.click("button._icon-button_1mzvx_160._play-pause-button_1akfd_177")
+        print("Monitor button pressed.")
+        await page.wait_for_navigation()  # انتظر حتى يتم تحميل صفحة المراقبة
+        print("Switched to Serial Monitor.")
+
         # Wait for device selection button
-        logger.debug("Waiting for device selection button...")
-        print("Waiting for device selection button...")
         await page.wait_for_selector("._device-name_12ggg_205", timeout=30000)
         await page.click("._device-name_12ggg_205")
         print("Device selection button clicked.")
-        
+
         # Search for ESP32 device
         search_input = await page.wait_for_selector("#react-aria1491380040-:r12:", timeout=30000)
         await search_input.type("DOIT ESP32 DEVKIT V1")
         await page.keyboard.press("Tab")
         await page.keyboard.press("Enter")
         print("ESP32 device selected.")
-        
+
         # Open Serial Monitor
         await page.wait_for_selector("._open-serial-monitor-button_1y7x9_356", timeout=30000)
         await page.click("._open-serial-monitor-button_1y7x9_356")
         print("Serial Monitor opened.")
-        
+
         # Set baud rate to 115200
         await page.wait_for_selector("._x-small_wmean_200", timeout=30000)
         await page.click("._x-small_wmean_200")
         await page.click('button:text("115200")')
         print("Baud rate set to 115200.")
-        
+
         # Switch to Serial Monitor
-        logger.debug("Switching to Serial Monitor...")
-        print("Switching to Serial Monitor...")
         await page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
         print("Switched to Serial Monitor.")
-        
+
         # Press the Run button
-        logger.debug("Pressing the Run button...")
-        print("Pressing the Run button...")
         await page.click("button._play-pause-button_1akfd_177")
         print("Run button pressed.")
-        
+
         logger.info("Successfully connected to Arduino Web Editor")
         browser_context['connected'] = True
         return True
