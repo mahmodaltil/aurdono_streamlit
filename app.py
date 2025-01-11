@@ -74,11 +74,13 @@ async def connect_to_arduino():
         logger.debug("Navigating to Arduino Web Editor...")
         while True:
             try:
-                logger.info("Attempting to connect to Arduino...")
+                print("Opening Arduino Web Editor...")
                 await page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
-                logger.info("Successfully connected to Arduino.")
+                print("Successfully opened Arduino Web Editor.")
+                print("Navigating to the specific Arduino sketch...")
                 await page.goto("https://app.arduino.cc/sketches/9dde49f6-08e5-4bc5-8dab-33849adbb868?nav=Files", wait_until='networkidle')
-                logger.info("Navigated to the specific Arduino sketch.")
+                print("Navigated to the specific Arduino sketch.")
+                print("All steps completed successfully.")
                 break  # Exit loop on success
             except playwright._impl._errors.TargetClosedError:
                 logger.error("Error: Connection to Arduino failed because the target page or browser was closed.")
