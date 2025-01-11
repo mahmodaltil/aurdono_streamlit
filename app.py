@@ -5,6 +5,11 @@ import threading
 import time
 import os
 from datetime import datetime
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key')
@@ -29,60 +34,76 @@ browser_context = {
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
+    logger.info('Client connected')
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
+    logger.info('Client disconnected')
 
 def setup_browser():
     """Initialize browser in headless mode"""
     try:
+        logger.info("Starting Playwright and browser setup...")
         browser_context['playwright'] = sync_playwright().start()
         browser_context['browser'] = browser_context['playwright'].chromium.launch(
             headless=True,
-            args=['--no-sandbox', '--disable-dev-shm-usage']
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-setuid-sandbox'
+            ]
         )
         browser_context['page'] = browser_context['browser'].new_page()
+        logger.info("Browser setup completed successfully")
         return True
     except Exception as e:
-        print(f"Failed to setup browser: {str(e)}")
+        logger.error(f"Failed to setup browser: {str(e)}", exc_info=True)
         return False
 
 def connect_to_arduino():
     """Connect to Arduino Web Editor and setup device"""
     try:
         page = browser_context['page']
+        logger.info("Connecting to Arduino Web Editor...")
         
         # Navigate to Arduino Web Editor
-        page.goto("https://app.arduino.cc/sketches")
+        logger.debug("Navigating to Arduino Web Editor...")
+        page.goto("https://app.arduino.cc/sketches", wait_until='networkidle')
         
         # Wait for device selection button
-        page.wait_for_selector("._device-name_12ggg_205")
+        logger.debug("Waiting for device selection button...")
+        page.wait_for_selector("._device-name_12ggg_205", timeout=30000)
         page.click("._device-name_12ggg_205")
         
         # Search for ESP32 device
-        search_input = page.wait_for_selector("#react-aria6138362191-:r10:")
+        logger.debug("Selecting ESP32 device...")
+        search_input = page.wait_for_selector("#react-aria6138362191-:r10:", timeout=30000)
         search_input.type("DOIT ESP32 DEVKIT V1")
         page.keyboard.press("Tab")
         page.keyboard.press("Enter")
         
         # Open Serial Monitor
-        page.wait_for_selector("._open-serial-monitor-button_1y7x9_356")
+        logger.debug("Opening Serial Monitor...")
+        page.wait_for_selector("._open-serial-monitor-button_1y7x9_356", timeout=30000)
         page.click("._open-serial-monitor-button_1y7x9_356")
         
         # Switch to Serial Monitor
-        page.goto("https://app.arduino.cc/sketches/monitor")
+        logger.debug("Switching to Serial Monitor...")
+        page.goto("https://app.arduino.cc/sketches/monitor", wait_until='networkidle')
         
         # Set baud rate to 115200
-        page.wait_for_selector("._x-small_wmean_200")
+        logger.debug("Setting baud rate...")
+        page.wait_for_selector("._x-small_wmean_200", timeout=30000)
         page.click("._x-small_wmean_200")
         page.click('button:text("115200")')
         
+        logger.info("Successfully connected to Arduino Web Editor")
         browser_context['connected'] = True
         return True
     except Exception as e:
-        print(f"Failed to connect to Arduino: {str(e)}")
+        logger.error(f"Failed to connect to Arduino: {str(e)}", exc_info=True)
         return False
 
 def monitor_serial_output():
@@ -90,14 +111,16 @@ def monitor_serial_output():
     while not browser_context['stop_monitor']:
         try:
             if browser_context['connected'] and browser_context['page']:
-                output_element = browser_context['page'].wait_for_selector(".serial-output")
+                logger.debug("Reading serial output...")
+                output_element = browser_context['page'].wait_for_selector(".serial-output", timeout=5000)
                 new_output = output_element.inner_text()
                 
                 if new_output != browser_context['last_output']:
+                    logger.debug(f"New serial output: {new_output}")
                     browser_context['last_output'] = new_output
                     socketio.emit('serial_data', {'data': new_output})
         except Exception as e:
-            print(f"Error reading serial output: {str(e)}")
+            logger.error(f"Error reading serial output: {str(e)}")
         
         time.sleep(1)
 
@@ -107,19 +130,29 @@ def index():
 
 @app.route('/connect', methods=['POST'])
 def connect():
+    logger.info("Received connection request")
     if not browser_context['connected']:
-        if setup_browser() and connect_to_arduino():
-            # Start monitoring thread
-            browser_context['stop_monitor'] = False
-            browser_context['monitor_thread'] = threading.Thread(target=monitor_serial_output)
-            browser_context['monitor_thread'].start()
-            return jsonify({'success': True, 'message': 'Connected successfully'})
+        if setup_browser():
+            if connect_to_arduino():
+                # Start monitoring thread
+                browser_context['stop_monitor'] = False
+                browser_context['monitor_thread'] = threading.Thread(target=monitor_serial_output)
+                browser_context['monitor_thread'].start()
+                logger.info("Connection successful")
+                return jsonify({'success': True, 'message': 'Connected successfully'})
+            else:
+                logger.error("Failed to connect to Arduino")
+                return jsonify({'success': False, 'message': 'Failed to connect to Arduino'})
+        else:
+            logger.error("Failed to setup browser")
+            return jsonify({'success': False, 'message': 'Failed to setup browser'})
     
-    return jsonify({'success': False, 'message': 'Failed to connect'})
+    return jsonify({'success': False, 'message': 'Already connected'})
 
 @app.route('/disconnect', methods=['POST'])
 def disconnect():
     try:
+        logger.info("Received disconnect request")
         browser_context['stop_monitor'] = True
         if browser_context['monitor_thread']:
             browser_context['monitor_thread'].join()
@@ -133,8 +166,10 @@ def disconnect():
         
         browser_context['connected'] = False
         browser_context['last_output'] = ''
+        logger.info("Disconnected successfully")
         return jsonify({'success': True})
     except Exception as e:
+        logger.error(f"Failed to disconnect: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/status')

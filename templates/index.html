@@ -76,16 +76,35 @@
 
         // Connect Button
         connectBtn.addEventListener('click', async () => {
-            connectBtn.disabled = true;
-            const response = await fetch('/connect', { method: 'POST' });
-            const result = await response.json();
-            
-            if (result.success) {
-                connected = true;
-                updateConnectionStatus();
-            } else {
+            try {
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting...';
+                statusText.textContent = 'Connecting...';
+                
+                const response = await fetch('/connect', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    connected = true;
+                    updateConnectionStatus();
+                    statusText.textContent = 'Connected';
+                    statusText.className = 'ml-2 text-green-500';
+                } else {
+                    throw new Error(result.message || 'Connection failed');
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                statusText.textContent = `Failed: ${error.message}`;
+                statusText.className = 'ml-2 text-red-500';
                 connectBtn.disabled = false;
-                alert('Failed to connect: ' + result.message);
+            } finally {
+                connectBtn.textContent = 'Connect';
             }
         });
 
