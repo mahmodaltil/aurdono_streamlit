@@ -106,6 +106,46 @@ def connect_to_arduino():
         logger.error(f"Failed to connect to Arduino: {str(e)}", exc_info=True)
         return False
 
+def parse_serial_data(data):
+    """Parse serial data to extract fingerprint and user information"""
+    try:
+        if "Fingerprint ID:" in data:
+            # Extract fingerprint ID
+            fp_id = data.split("Fingerprint ID:")[1].strip().split()[0]
+            return {
+                'type': 'fingerprint_scan',
+                'id': fp_id,
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        elif "Enrolled fingerprint ID:" in data:
+            # Extract enrolled fingerprint data
+            fp_id = data.split("Enrolled fingerprint ID:")[1].strip().split()[0]
+            return {
+                'type': 'enrollment',
+                'id': fp_id,
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        elif "Total fingerprints:" in data:
+            # Extract total fingerprints count
+            count = data.split("Total fingerprints:")[1].strip().split()[0]
+            return {
+                'type': 'status',
+                'count': count,
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        return {
+            'type': 'raw',
+            'data': data,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        logger.error(f"Error parsing serial data: {str(e)}")
+        return {
+            'type': 'error',
+            'data': str(e),
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
 def monitor_serial_output():
     """Monitor serial output in a separate thread"""
     while not browser_context['stop_monitor']:
@@ -118,7 +158,8 @@ def monitor_serial_output():
                 if new_output != browser_context['last_output']:
                     logger.debug(f"New serial output: {new_output}")
                     browser_context['last_output'] = new_output
-                    socketio.emit('serial_data', {'data': new_output})
+                    parsed_data = parse_serial_data(new_output)
+                    socketio.emit('serial_data', parsed_data)
         except Exception as e:
             logger.error(f"Error reading serial output: {str(e)}")
         

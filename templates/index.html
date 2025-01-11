@@ -6,6 +6,19 @@
     <title>Smart Entrance Control System</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .serial-line {
+            padding: 2px 5px;
+            border-bottom: 1px solid #2d374850;
+        }
+        .serial-line:hover {
+            background-color: #2d374820;
+        }
+        .timestamp {
+            color: #6b7280;
+            font-size: 0.8em;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
@@ -32,12 +45,78 @@
                 <button id="disconnect-btn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 focus:outline-none" disabled>
                     Disconnect
                 </button>
+                <button id="clear-btn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 focus:outline-none">
+                    Clear Log
+                </button>
             </div>
             
             <!-- Serial Monitor -->
-            <div class="border rounded-lg p-4 bg-black">
-                <h2 class="text-xl font-semibold mb-4 text-white">Serial Monitor</h2>
-                <pre id="serial-output" class="font-mono text-green-400 whitespace-pre-wrap h-64 overflow-y-auto">Waiting for connection...</pre>
+            <div class="border rounded-lg p-4 bg-gray-900">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-white">Serial Monitor</h2>
+                    <div class="flex space-x-2">
+                        <label class="text-white">
+                            <input type="checkbox" id="auto-scroll" checked> Auto-scroll
+                        </label>
+                        <select id="max-lines" class="bg-gray-800 text-white rounded px-2 py-1">
+                            <option value="50">50 lines</option>
+                            <option value="100">100 lines</option>
+                            <option value="200">200 lines</option>
+                            <option value="500">500 lines</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="serial-output" class="font-mono text-green-400 h-96 overflow-y-auto bg-gray-800 p-4 rounded">
+                    <div class="serial-content"></div>
+                </div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="mt-6 grid grid-cols-2 gap-4">
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-white mb-2">Data Statistics</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="text-gray-300">Total Fingerprints:</div>
+                        <div id="total-fingerprints" class="text-green-400">0</div>
+                        <div class="text-gray-300">Last Scan:</div>
+                        <div id="last-scan" class="text-green-400">-</div>
+                        <div class="text-gray-300">Messages Received:</div>
+                        <div id="messages-count" class="text-green-400">0</div>
+                        <div class="text-gray-300">Last Message:</div>
+                        <div id="last-message-time" class="text-green-400">-</div>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-white mb-2">Connection Info</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="text-gray-300">Connected Since:</div>
+                        <div id="connected-since" class="text-green-400">-</div>
+                        <div class="text-gray-300">Connection Status:</div>
+                        <div id="detailed-status" class="text-green-400">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fingerprint Activity -->
+            <div class="mt-6">
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-white mb-4">Fingerprint Activity</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-gray-300">
+                            <thead>
+                                <tr class="border-b border-gray-700">
+                                    <th class="px-4 py-2 text-left">Time</th>
+                                    <th class="px-4 py-2 text-left">Type</th>
+                                    <th class="px-4 py-2 text-left">ID</th>
+                                    <th class="px-4 py-2 text-left">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fingerprint-log">
+                                <!-- Fingerprint entries will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -54,32 +133,139 @@
         // DOM Elements
         const connectBtn = document.getElementById('connect-btn');
         const disconnectBtn = document.getElementById('disconnect-btn');
+        const clearBtn = document.getElementById('clear-btn');
         const statusText = document.getElementById('connection-status');
         const lastUpdateText = document.getElementById('last-update');
         const serialOutput = document.getElementById('serial-output');
+        const serialContent = serialOutput.querySelector('.serial-content');
+        const autoScroll = document.getElementById('auto-scroll');
+        const maxLines = document.getElementById('max-lines');
+        const messagesCount = document.getElementById('messages-count');
+        const lastMessageTime = document.getElementById('last-message-time');
+        const connectedSince = document.getElementById('connected-since');
+        const detailedStatus = document.getElementById('detailed-status');
+        const totalFingerprints = document.getElementById('total-fingerprints');
+        const lastScan = document.getElementById('last-scan');
+        const fingerprintLog = document.getElementById('fingerprint-log');
+        
+        let messageCounter = 0;
+        let connected = false;
+        let connectionStartTime = null;
 
-        // Socket connection events
+        // Keep track of fingerprint data
+        let fingerprintCount = 0;
+        const maxLogEntries = 50;
+
+        // Helper Functions
+        function formatTimestamp(date) {
+            return date.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                fractionalSecondDigits: 3
+            });
+        }
+
+        function addSerialLine(text) {
+            const timestamp = new Date();
+            const line = document.createElement('div');
+            line.className = 'serial-line';
+            line.innerHTML = `<span class="timestamp">[${formatTimestamp(timestamp)}]</span> ${text}`;
+            
+            serialContent.appendChild(line);
+            messageCounter++;
+            messagesCount.textContent = messageCounter;
+            lastMessageTime.textContent = formatTimestamp(timestamp);
+
+            // Limit the number of lines
+            const maxLineCount = parseInt(maxLines.value);
+            while (serialContent.children.length > maxLineCount) {
+                serialContent.removeChild(serialContent.firstChild);
+            }
+
+            // Auto-scroll
+            if (autoScroll.checked) {
+                serialOutput.scrollTop = serialOutput.scrollHeight;
+            }
+        }
+
+        function addFingerprintEntry(data) {
+            const row = document.createElement('tr');
+            row.className = 'border-b border-gray-700 hover:bg-gray-700';
+            
+            let details = '';
+            switch(data.type) {
+                case 'fingerprint_scan':
+                    details = 'Fingerprint scanned';
+                    lastScan.textContent = data.timestamp;
+                    break;
+                case 'enrollment':
+                    details = 'New fingerprint enrolled';
+                    break;
+                case 'status':
+                    fingerprintCount = parseInt(data.count);
+                    totalFingerprints.textContent = fingerprintCount;
+                    details = `Total fingerprints: ${data.count}`;
+                    break;
+                case 'error':
+                    details = `Error: ${data.data}`;
+                    break;
+                default:
+                    if (data.data) {
+                        details = data.data;
+                    }
+            }
+
+            row.innerHTML = `
+                <td class="px-4 py-2">${data.timestamp}</td>
+                <td class="px-4 py-2">${data.type}</td>
+                <td class="px-4 py-2">${data.id || '-'}</td>
+                <td class="px-4 py-2">${details}</td>
+            `;
+
+            fingerprintLog.insertBefore(row, fingerprintLog.firstChild);
+
+            // Limit the number of entries
+            while (fingerprintLog.children.length > maxLogEntries) {
+                fingerprintLog.removeChild(fingerprintLog.lastChild);
+            }
+        }
+
+        // Socket Events
         socket.on('connect', () => {
             console.log('Connected to server');
+            detailedStatus.textContent = 'Connected to server';
         });
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server');
+            detailedStatus.textContent = 'Disconnected from server';
+            connected = false;
+            updateConnectionStatus();
         });
 
         socket.on('connect_error', (error) => {
             console.error('Connection error:', error);
+            detailedStatus.textContent = 'Connection error';
             setTimeout(() => {
                 socket.connect();
             }, 1000);
         });
 
-        // Connect Button
+        socket.on('serial_data', (data) => {
+            addSerialLine(data.data || JSON.stringify(data));
+            addFingerprintEntry(data);
+            lastUpdateText.textContent = formatTimestamp(new Date());
+        });
+
+        // Button Events
         connectBtn.addEventListener('click', async () => {
             try {
                 connectBtn.disabled = true;
                 connectBtn.textContent = 'Connecting...';
                 statusText.textContent = 'Connecting...';
+                detailedStatus.textContent = 'Connecting to Arduino...';
                 
                 const response = await fetch('/connect', { 
                     method: 'POST',
@@ -92,9 +278,13 @@
                 
                 if (result.success) {
                     connected = true;
+                    connectionStartTime = new Date();
+                    connectedSince.textContent = formatTimestamp(connectionStartTime);
                     updateConnectionStatus();
                     statusText.textContent = 'Connected';
                     statusText.className = 'ml-2 text-green-500';
+                    detailedStatus.textContent = 'Connected to Arduino';
+                    addSerialLine('Connected to Arduino Web Editor');
                 } else {
                     throw new Error(result.message || 'Connection failed');
                 }
@@ -102,26 +292,40 @@
                 console.error('Connection error:', error);
                 statusText.textContent = `Failed: ${error.message}`;
                 statusText.className = 'ml-2 text-red-500';
+                detailedStatus.textContent = `Error: ${error.message}`;
                 connectBtn.disabled = false;
+                addSerialLine(`Connection failed: ${error.message}`);
             } finally {
                 connectBtn.textContent = 'Connect';
             }
         });
 
-        // Disconnect Button
         disconnectBtn.addEventListener('click', async () => {
-            disconnectBtn.disabled = true;
-            const response = await fetch('/disconnect', { method: 'POST' });
-            const result = await response.json();
-            
-            if (result.success) {
-                connected = false;
-                updateConnectionStatus();
-                serialOutput.textContent = 'Waiting for connection...';
-            } else {
-                disconnectBtn.disabled = false;
-                alert('Failed to disconnect: ' + result.message);
+            try {
+                disconnectBtn.disabled = true;
+                const response = await fetch('/disconnect', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    connected = false;
+                    updateConnectionStatus();
+                    connectionStartTime = null;
+                    connectedSince.textContent = '-';
+                    addSerialLine('Disconnected from Arduino Web Editor');
+                } else {
+                    throw new Error(result.message || 'Disconnect failed');
+                }
+            } catch (error) {
+                console.error('Disconnect error:', error);
+                addSerialLine(`Disconnect failed: ${error.message}`);
             }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            serialContent.innerHTML = '';
+            messageCounter = 0;
+            messagesCount.textContent = '0';
+            addSerialLine('Log cleared');
         });
 
         // Update Connection Status
@@ -131,12 +335,6 @@
             connectBtn.disabled = connected;
             disconnectBtn.disabled = !connected;
         }
-
-        // Socket.io Events
-        socket.on('serial_data', (data) => {
-            serialOutput.textContent = data.data;
-            lastUpdateText.textContent = new Date().toLocaleTimeString();
-        });
 
         // Status Updates
         async function updateStatus() {
@@ -151,9 +349,10 @@
             }
         }
 
-        // Update status every 5 seconds
+        // Initial setup
         setInterval(updateStatus, 5000);
         updateStatus();
+        addSerialLine('Serial monitor initialized');
     </script>
 </body>
 </html>
