@@ -45,21 +45,20 @@ async def setup_browser():
     """Initialize browser in headless mode"""
     try:
         logger.info("Starting Playwright and browser setup...")
-        async with async_playwright() as p:
-            browser_context['playwright'] = p
-            browser_context['browser'] = await p.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    '--disable-setuid-sandbox'
-                ]
-            )
-            browser_context['page'] = await browser_context['browser'].new_page()
-            logger.info("Browser setup completed successfully")
-            return True
+        browser_context['playwright'] = await async_playwright().start()
+        browser_context['browser'] = await browser_context['playwright'].chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-setuid-sandbox'
+            ]
+        )
+        browser_context['page'] = await browser_context['browser'].new_page()
+        logger.info("Browser setup completed successfully")
+        return True
     except Exception as e:
         logger.error(f"Failed to setup browser: {str(e)}", exc_info=True)
         return False
@@ -69,15 +68,6 @@ async def connect_to_arduino():
     try:
         page = browser_context['page']
         logger.info("Connecting to Arduino Web Editor...")
-        
-        # Open Arduino login page
-        await page.goto("https://app.arduino.cc/login", wait_until='networkidle')
-        print("Opened Arduino login page.")
-        await page.fill("input[name='email']", "bayan0mahmoud@gmail.com")  # أدخل البريد الإلكتروني
-        await page.fill("input[name='password']", "0122333bm")  # أدخل كلمة المرور
-        await page.click("button[type='submit']")  # اضغط على زر تسجيل الدخول
-        await page.wait_for_navigation()  # انتظر حتى يتم الانتقال بعد تسجيل الدخول
-        print("Logged in successfully.")
         
         # Open Arduino login page
         await page.goto("https://app.arduino.cc/login", wait_until='networkidle')
@@ -255,5 +245,5 @@ def status():
     })
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
