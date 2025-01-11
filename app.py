@@ -29,8 +29,8 @@ browser_context = {
     'page': None,
     'connected': False,
     'last_output': '',
-    'monitor_thread': None,
-    'stop_monitor': False
+   'monitor_thread': None,
+   'stop_monitor': False
 }
 
 @socketio.on('connect')
@@ -69,6 +69,15 @@ async def connect_to_arduino():
     try:
         page = browser_context['page']
         logger.info("Connecting to Arduino Web Editor...")
+        
+        # Open Arduino login page
+        await page.goto("https://app.arduino.cc/login", wait_until='networkidle')
+        print("Opened Arduino login page.")
+        await page.fill("input[name='email']", "bayan0mahmoud@gmail.com")  # أدخل البريد الإلكتروني
+        await page.fill("input[name='password']", "0122333bm")  # أدخل كلمة المرور
+        await page.click("button[type='submit']")  # اضغط على زر تسجيل الدخول
+        await page.wait_for_navigation()  # انتظر حتى يتم الانتقال بعد تسجيل الدخول
+        print("Logged in successfully.")
         
         # Open Arduino login page
         await page.goto("https://app.arduino.cc/login", wait_until='networkidle')
@@ -166,7 +175,7 @@ def parse_serial_data(data):
             # Extract total fingerprints count
             count = data.split("Total fingerprints:")[1].strip().split()[0]
             return {
-                'type': 'status',
+                'type':'status',
                 'count': count,
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -192,7 +201,7 @@ async def monitor_serial_output():
                 output_element = await browser_context['page'].wait_for_selector(".serial-output", timeout=5000)
                 new_output = await output_element.inner_text()
                 
-                if new_output != browser_context['last_output']:
+                if new_output!= browser_context['last_output']:
                     logger.debug(f"New serial output: {new_output}")
                     browser_context['last_output'] = new_output
                     parsed_data = parse_serial_data(new_output)
@@ -214,40 +223,29 @@ def connect():
             if asyncio.run(connect_to_arduino()):
                 # Start monitoring thread
                 browser_context['stop_monitor'] = False
-                asyncio.run(monitor_serial_output())
+                asyncio.create_task(monitor_serial_output())  # use create_task instead of run
                 logger.info("Connection successful")
-                return jsonify({'success': True, 'message': 'Connected successfully'})
+                return jsonify({'success': True,'message': 'Connected successfully'})
             else:
                 logger.error("Failed to connect to Arduino")
-                return jsonify({'success': False, 'message': 'Failed to connect to Arduino'})
+                return jsonify({'success': False,'message': 'Failed to connect to Arduino'})
         else:
             logger.error("Failed to setup browser")
-            return jsonify({'success': False, 'message': 'Failed to setup browser'})
+            return jsonify({'success': False,'message': 'Failed to setup browser'})
     
-    return jsonify({'success': False, 'message': 'Already connected'})
+    return jsonify({'success': False,'message': 'Already connected'})
 
 @app.route('/disconnect', methods=['POST'])
 def disconnect():
     try:
         logger.info("Received disconnect request")
         browser_context['stop_monitor'] = True
-        if browser_context['monitor_thread']:
-            browser_context['monitor_thread'].join()
-        
-        if browser_context['page']:
-            browser_context['page'].close()
-        if browser_context['browser']:
-            browser_context['browser'].close()
-        if browser_context['playwright']:
-            browser_context['playwright'].stop()
-        
         browser_context['connected'] = False
-        browser_context['last_output'] = ''
         logger.info("Disconnected successfully")
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Failed to disconnect: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({'success': False,'message': str(e)})
 
 @app.route('/status')
 def status():
